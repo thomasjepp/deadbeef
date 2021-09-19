@@ -891,35 +891,30 @@ main_cleanup_and_quit (void);
         if (files.count < 1) {
             return;
         }
-        NSString *fname = [files.firstObject path];
-        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-            ddb_playlist_t *plt = deadbeef->plt_alloc ("load-playlist");
-            ddb_playlist_t *plt_curr = deadbeef->plt_get_curr ();
-            deadbeef->plt_clear (plt_curr);
-            deadbeef->sendmessage (DB_EV_PLAYLISTCHANGED, 0, DDB_PLAYLIST_CHANGE_CONTENT, 0);
-            if (!deadbeef->plt_add_files_begin (plt_curr, 0)) {
-                int abort = 0;
-                deadbeef->plt_load2 (0, plt, NULL, fname.UTF8String, &abort, NULL, NULL);
-                if (!abort) {
-                    dispatch_async(dispatch_get_main_queue(), ^{
-                        deadbeef->plt_move_all_items(plt_curr, plt, NULL);
+
+        dispatch_queue_t aQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
+        for (NSUInteger i = 0; i < [files count]; i++) {
+            NSString *fname = [[files objectAtIndex:i] path];
+            dispatch_async(aQueue, ^{
+                deadbeef->pl_lock();
+                
+                NSString *filename = [[fname lastPathComponent] stringByDeletingPathExtension];
+                int cnt = deadbeef->plt_get_count ();
+                int idx = deadbeef->plt_add(cnt, [filename UTF8String]);
+                ddb_playlist_t *plt = deadbeef->plt_get_for_idx(idx);
+                if (!deadbeef->plt_add_files_begin (plt, 0)) {
+                        deadbeef->plt_clear (plt);
+                        int abort = 0;
+                        deadbeef->plt_load2 (0, plt, NULL, [fname UTF8String], &abort, NULL, NULL);
                         deadbeef->plt_save_config (plt);
-                        deadbeef->plt_add_files_end (plt_curr, 0);
-                        deadbeef->plt_unref (plt);
-                        deadbeef->plt_unref (plt_curr);
-                    });
+                        deadbeef->plt_add_files_end (plt, 0);
                 }
-                else {
-                    deadbeef->plt_add_files_end (plt_curr, 0);
-                    deadbeef->plt_unref (plt);
-                    deadbeef->plt_unref (plt_curr);
-                }
-            }
-            else {
                 deadbeef->plt_unref (plt);
-                deadbeef->plt_unref (plt_curr);
-            }
-        });
+                
+                deadbeef->pl_unlock();
+                deadbeef->sendmessage (DB_EV_PLAYLISTCHANGED, 0, DDB_PLAYLIST_CHANGE_CONTENT, 0);
+            });
+        }
     }
 }
 
