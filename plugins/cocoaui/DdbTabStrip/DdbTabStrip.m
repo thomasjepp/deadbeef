@@ -563,8 +563,8 @@ static const int close_btn_left_offs = 8;
 }
 
 -(void)scrollWheel:(NSEvent*)event {
-    CGFloat newScroll = self.scrollPos + event.deltaY;
-    newScroll -= event.deltaY * 4;
+    CGFloat newScroll = self.scrollPos + event.deltaX;
+    newScroll -= event.deltaX * 8;
     self.scrollPos = newScroll;
     self.needsDisplay = YES;
 }
