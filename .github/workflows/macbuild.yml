@@ -15,10 +15,15 @@ jobs:
         xcode-version: '13'
     - name: Build for macOS
       run: TRAVIS_OS_NAME=osx travis/build.sh
+    - name: Publish Test Results
+      uses: EnricoMi/publish-unit-test-result-action/composite@v2
+      if: always()
+      with:
+        junit_files: "build/reports/junit.xml"
     - name: Upload for macOS
       env:
-          gh_rsa_key: ${{ secrets.GH_ENCRYPTED_RSA_KEY }}
-          gh_rsa_iv: ${{ secrets.GH_ENCRYPTED_RSA_IV }}
+        gh_rsa_key: ${{ secrets.GH_ENCRYPTED_RSA_KEY }}
+        gh_rsa_iv: ${{ secrets.GH_ENCRYPTED_RSA_IV }}
       run: TRAVIS_OS_NAME=osx travis/upload.sh
     - name: Upload artifact
       uses: actions/upload-artifact@v2
