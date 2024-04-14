@@ -787,7 +787,12 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
 - (void)drawCell:(NSUInteger)idx forRow:(DdbListviewRow_t)row forColumn:(DdbListviewCol_t)col inRect:(NSRect)rect focused:(BOOL)focused {
     int sel = deadbeef->pl_is_selected((DB_playItem_t *)row);
     NSColor *background = NSColor.controlBackgroundColor;
-    if (sel) {
+    
+    if (col == self.invalidColumn) {
+        return;
+    }
+    
+    if (sel && _columns[col].type != DB_COLUMN_ALBUM_ART) {
         if (focused) {
             [NSColor.alternateSelectedControlColor set];
             background = NSColor.alternateSelectedControlColor;
@@ -798,10 +803,6 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
             background = NSColor.controlShadowColor;
             [NSBezierPath fillRect:rect];
         }
-    }
-
-    if (col == self.invalidColumn) {
-        return;
     }
 
     DB_playItem_t *playing_track = deadbeef->streamer_get_playing_track_safe ();
