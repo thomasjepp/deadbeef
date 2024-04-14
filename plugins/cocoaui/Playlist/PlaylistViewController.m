@@ -425,19 +425,19 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
     textStyle.lineBreakMode = NSLineBreakByTruncatingTail;
 
 
-    int rowheight = 18;
+    CGFloat fontSize = 13.5;
 
-    self.groupTextAttrsDictionary = @{NSFontAttributeName: [NSFont boldSystemFontOfSize:[NSFont systemFontSizeForControlSize:rowheight]]
+    self.groupTextAttrsDictionary = @{NSFontAttributeName: [NSFont systemFontOfSize:fontSize * 1.5 weight:NSFontWeightLight]
                                  , NSBaselineOffsetAttributeName: @0.0f
                                  , NSForegroundColorAttributeName: NSColor.controlTextColor
                                  , NSParagraphStyleAttributeName: textStyle};
 
-    self.cellTextAttrsDictionary = @{NSFontAttributeName: [NSFont controlContentFontOfSize:[NSFont systemFontSizeForControlSize:rowheight]]
+    self.cellTextAttrsDictionary = @{NSFontAttributeName: [NSFont monospacedDigitSystemFontOfSize:fontSize weight:NSFontWeightRegular]
                                 , NSBaselineOffsetAttributeName: @0.0f
                                 , NSForegroundColorAttributeName: NSColor.controlTextColor
                                 , NSParagraphStyleAttributeName: textStyle};
 
-    self.cellSelectedTextAttrsDictionary = @{NSFontAttributeName: [NSFont controlContentFontOfSize:[NSFont systemFontSizeForControlSize:rowheight]]
+    self.cellSelectedTextAttrsDictionary = @{NSFontAttributeName: [NSFont monospacedDigitSystemFontOfSize:fontSize weight:NSFontWeightRegular]
                                         , NSBaselineOffsetAttributeName: @0.0f
                                         , NSForegroundColorAttributeName: NSColor.alternateSelectedControlTextColor
                                         , NSParagraphStyleAttributeName: textStyle};
@@ -870,6 +870,8 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
 
         rect.origin.x += CELL_HPADDING;
         rect.size.width -= CELL_HPADDING*2;
+        rect.origin.y += 1;
+        rect.size.height -= 2;
 
         if (text[0]) {
             NSDictionary *attributes = sel?self.cellSelectedTextAttrsDictionary:self.cellTextAttrsDictionary;
