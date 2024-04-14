@@ -22,8 +22,8 @@ extern DB_functions_t *deadbeef;
 
 #define BLANK_GROUP_SUBDIVISION 100
 
-static int rowheight = 19;
-static int grouptitleheight = 22;
+static int rowheight = 20;
+static int grouptitleheight = 34;
 
 @interface PlaylistContentView ()
 
