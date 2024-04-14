@@ -263,7 +263,7 @@ static int grouptitleheight = 22;
         int w = [self.delegate columnWidth:col];
 
         if ([self.delegate isAlbumArtColumn:col] && x + w > clip.origin.x) {
-            NSColor *clr = (NSColor.controlAlternatingRowBackgroundColors)[0];
+            NSColor *clr = NSColor.controlBackgroundColor;
             [clr set];
             [NSBezierPath fillRect:NSMakeRect (x, y, w, grp_next_y - y)];
             if (title_height > 0) {
@@ -278,7 +278,7 @@ static int grouptitleheight = 22;
 
 - (void)drawGroupTitle:(PlaylistGroup *)grp grp_y:(int)grp_y title_height:(int)title_height {
     NSRect groupRect = NSMakeRect(0, grp_y, self.frame.size.width, title_height);
-    NSColor *clr = (NSColor.controlAlternatingRowBackgroundColors)[0];
+    NSColor *clr = NSColor.controlBackgroundColor;
     [clr set];
 #if DEBUG_DRAW_GROUP_TITLES
     [NSColor.greenColor set];
@@ -422,7 +422,7 @@ static int grouptitleheight = 22;
 
             if (yy + rowheight >= clip_y) {
                 // draw row
-                NSColor *clr = (NSColor.controlAlternatingRowBackgroundColors)[ii % 2];
+                NSColor *clr = NSColor.controlBackgroundColor;
                 [clr set];
                 [NSBezierPath fillRect:NSMakeRect(dirtyRect.origin.x, yy, dirtyRect.size.width, rowheight)];
 
@@ -502,7 +502,7 @@ static int grouptitleheight = 22;
         int ii = (self.dataModel).rowCount+1;
         while (y < dirtyRect.origin.y + dirtyRect.size.height) {
             if (y + rowheight >= dirtyRect.origin.y) {
-                NSColor *clr = (NSColor.controlAlternatingRowBackgroundColors)[ii % 2];
+                NSColor *clr = NSColor.controlBackgroundColor;
                 [clr set];
                 [NSBezierPath fillRect:NSMakeRect(dirtyRect.origin.x, y, dirtyRect.size.width, rowheight)];
             }
