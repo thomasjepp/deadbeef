@@ -799,8 +799,13 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
             [NSBezierPath fillRect:rect];
         }
         else {
-            [NSColor.controlShadowColor set];
-            background = NSColor.controlShadowColor;
+            if (@available(macOS 10.14, *)) {
+                [NSColor.unemphasizedSelectedTextBackgroundColor set];
+                background = NSColor.unemphasizedSelectedTextBackgroundColor;
+            } else {
+                [NSColor.controlShadowColor set];
+                background = NSColor.controlShadowColor;
+            }
             [NSBezierPath fillRect:rect];
         }
     }
