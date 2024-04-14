@@ -393,6 +393,16 @@ static int grouptitleheight = 22;
         dragIdx = [self dragInsertPointForYPos:_lastDragLocation.y];
     }
 
+    int first_col_width = [self.delegate columnWidth:[self.delegate firstColumn]];
+    
+    int total_column_width = 0;
+    for (DdbListviewCol_t c = (self.delegate).firstColumn; c != (self.delegate).invalidColumn; c = [self.delegate nextColumn:c]) {
+        if (c == (self.delegate).firstColumn) {
+            continue;
+        }
+        total_column_width += [self.delegate columnWidth:c];
+    }
+    
     while (groupIndex < self.groups.count && grp_y < clip_y + clip_h) {
         grp = self.groups[groupIndex];
         DdbListviewRow_t it = grp->head;
@@ -420,7 +430,7 @@ static int grouptitleheight = 22;
                 for (DdbListviewCol_t col = (self.delegate).firstColumn; col != (self.delegate).invalidColumn; col = [self.delegate nextColumn:col]) {
                     int w = [self.delegate columnWidth:col];
                     if (CGRectIntersectsRect(dirtyRect, NSMakeRect(x, yy, w, rowheight))) {
-                        [self.delegate drawCell:idx+i forRow: it forColumn:col inRect:NSMakeRect(x, yy, w, rowheight-1) focused:focused];
+                        [self.delegate drawCell:idx+i forRow: it forColumn:col inRect:NSMakeRect(x, yy, w, rowheight-1) focused:col == [self.delegate firstColumn] ? false : focused];
                     }
                     x += w;
                 }
@@ -431,7 +441,7 @@ static int grouptitleheight = 22;
 
                 if (it == cursor_it) {
                     [[NSGraphicsContext currentContext] saveGraphicsState];
-                    NSRect rect = NSMakeRect(self.frame.origin.x+0.5, yy+0.5, self.frame.size.width-1, rowheight-1);
+                    NSRect rect = NSMakeRect(first_col_width + self.frame.origin.x+0.5, yy+0.5, total_column_width-1, rowheight-1);
                     NSBezierPath.defaultLineWidth = 1.f;
                     [NSColor.textColor set];
                     [NSBezierPath strokeRect:rect];
