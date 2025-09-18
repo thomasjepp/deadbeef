@@ -303,7 +303,7 @@
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>UIDesignRequiresCompatibility</key>
-	<true/>
+	<false/>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
 		<dict>
