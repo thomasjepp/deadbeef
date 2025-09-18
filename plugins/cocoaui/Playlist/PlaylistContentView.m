@@ -384,12 +384,6 @@ static int grouptitleheight = 34;
 }
 
 - (void)drawListView:(NSRect)dirtyRect {
-    [self groupCheck];
-
-    // nasty hack to clear the background
-    [NSColor.controlBackgroundColor set];
-    [NSBezierPath fillRect:dirtyRect];
-
     CGFloat clip_y = dirtyRect.origin.y;
     CGFloat clip_h = dirtyRect.size.height;
 
