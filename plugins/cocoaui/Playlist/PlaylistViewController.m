@@ -36,10 +36,12 @@
 #import "Weakify.h"
 
 #include <deadbeef/deadbeef.h>
+#include <math.h>
 #include "utf8.h"
 #include "artwork.h"
 
 #define CELL_HPADDING 4
+#define MIN_COLUMN_WIDTH 10
 #define ART_PADDING_HORZ 8
 #define ART_PADDING_VERT 0
 
@@ -70,6 +72,8 @@ extern DB_functions_t *deadbeef;
 @property (nonatomic,readwrite) plt_col_info_t *columns;
 @property (nonatomic,readwrite) int ncolumns;
 @property (nonatomic) int columnsAllocated;
+@property (nonatomic) NSMutableArray<NSMutableDictionary *> *columnConfigDictionaries;
+@property (nonatomic) BOOL usingDefaultColumnConfig;
 
 @property (nonatomic) TrackContextMenu *trackContextMenu;
 
@@ -247,6 +251,17 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
     }
 }
 
+- (void)menuToggleColumnSizing:(id)sender {
+    if (self.menuColumn < 0) {
+        return;
+    }
+
+    int displayWidth = [self columnWidth:self.menuColumn];
+    self.columns[self.menuColumn].size = displayWidth;
+    self.columns[self.menuColumn].sizing = self.columns[self.menuColumn].sizing == ColumnSizingDynamic ? ColumnSizingFixed : ColumnSizingDynamic;
+    [self columnsDidChange];
+}
+
 - (void)menuTogglePinGroups:(NSButton *)sender {
     self.pinGroups = sender.state == NSControlStateValueOn ? 0 : 1;
     sender.state = self.pinGroups?NSControlStateValueOn:NSControlStateValueOff;
@@ -318,24 +333,38 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
     NSMutableArray *columns = [[NSMutableArray alloc] initWithCapacity:self.ncolumns];
     for (int i = 0; i < self.ncolumns; i++) {
         uint8_t *col = self.columns[i].text_color;
-        NSDictionary *dict = @{@"title": @(self.columns[i].title)
-                              , @"id": [NSString stringWithFormat:@"%d", self.columns[i].type]
-                              , @"format": @(self.columns[i].format ?: "")
-                              , @"sort_format": @(self.columns[i].sortFormat ?: "")
-                              , @"size": [NSString stringWithFormat:@"%d", self.columns[i].size]
-                              , @"alignment": @(self.columns[i].alignment)
-                              , @"set_text_color": @(self.columns[i].set_text_color)
-                              , @"text_color": [NSString stringWithFormat:@"#%02x%02x%02x%02x", col[3], col[0], col[1], col[2]]};
+        NSMutableDictionary *dict;
+        NSUInteger columnIndex = (NSUInteger)i;
+        if (columnIndex < self.columnConfigDictionaries.count) {
+            dict = [self.columnConfigDictionaries[columnIndex] mutableCopy];
+        }
+        else {
+            dict = [NSMutableDictionary new];
+        }
+
+        dict[@"title"] = @(self.columns[i].title);
+        dict[@"id"] = [NSString stringWithFormat:@"%d", self.columns[i].type];
+        dict[@"format"] = @(self.columns[i].format ?: "");
+        dict[@"sort_format"] = @(self.columns[i].sortFormat ?: "");
+        dict[@"size"] = [NSString stringWithFormat:@"%d", self.columns[i].size];
+        [dict removeObjectForKey:@"scales"];
+        dict[@"alignment"] = @(self.columns[i].alignment);
+        dict[@"set_text_color"] = @(self.columns[i].set_text_color);
+        dict[@"text_color"] = [NSString stringWithFormat:@"#%02x%02x%02x%02x", col[3], col[0], col[1], col[2]];
         [columns addObject:dict];
     }
 
     NSError *err = nil;
     NSData *dt = [NSJSONSerialization dataWithJSONObject:columns options:0 error:&err];
+    NSData *sizingDt = [NSJSONSerialization dataWithJSONObject:[self columnSizingConfig] options:0 error:&err];
 
     [lv.contentView reloadData];
+    self.columnConfigDictionaries = columns;
 
     NSString *json = [[NSString alloc] initWithData:dt encoding:NSUTF8StringEncoding];
     [self writeColumnConfig:json];
+    NSString *sizingJson = [[NSString alloc] initWithData:sizingDt encoding:NSUTF8StringEncoding];
+    [self writeColumnSizingConfig:sizingJson];
     deadbeef->conf_save ();
 }
 
@@ -388,6 +417,7 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
                       title:self.editColumnWindowController.titleTextField.stringValue.UTF8String
                  identifier:(int)type
                        size:self.columns[idx].size
+                     sizing:self.columns[idx].sizing
                      format:self.editColumnWindowController.formatTextField.stringValue.UTF8String
                  sortFormat:self.editColumnWindowController.sortFormatTextField.stringValue.UTF8String
                   alignment:(int)self.editColumnWindowController.alignmentPopUpButton.indexOfSelectedItem shouldSetColor:(self.editColumnWindowController.setColorButton.state == NSControlStateValueOn)
@@ -396,13 +426,50 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
 }
 
 #define DEFAULT_COLUMNS "[{\"title\":\"Playing\", \"id\":\"1\", \"format\":\"%playstatus%\", \"size\":\"50\"}, {\"title\":\"Artist / Album\", \"format\":\"$if(%album artist%,%album artist%,Unknown Artist)[ - %album%]\", \"size\":\"150\"}, {\"title\":\"Track Nr\", \"format\":\"%track number%\", \"size\":\"50\"}, {\"title\":\"Title / Track Artist\", \"format\":\"%title%[ // %track artist%]\", \"size\":\"150\"}, {\"title\":\"Length\", \"format\":\"%length%\", \"size\":\"50\"}]"
+#define DEFAULT_COLUMN_SIZING "[false,false,false,true,false]"
+
+- (const char *)columnConfigKey {
+    return "cocoaui.columns";
+}
+
+- (const char *)defaultColumnConfig {
+    return DEFAULT_COLUMNS;
+}
+
+- (const char *)columnSizingConfigKey {
+    return "cocoaui.column_sizing";
+}
+
+- (const char *)defaultColumnSizingConfig {
+    return DEFAULT_COLUMN_SIZING;
+}
 
 - (NSString *)getColumnConfig {
-    return conf_get_nsstr ("cocoaui.columns", DEFAULT_COLUMNS);
+    NSString *columns = nil;
+    deadbeef->conf_lock ();
+    const char *value = deadbeef->conf_get_str_fast ([self columnConfigKey], NULL);
+    if (value != NULL) {
+        columns = @(value);
+        self.usingDefaultColumnConfig = NO;
+    }
+    else {
+        columns = @([self defaultColumnConfig]);
+        self.usingDefaultColumnConfig = YES;
+    }
+    deadbeef->conf_unlock ();
+    return columns;
 }
 
 - (void)writeColumnConfig:(NSString *)config {
-    deadbeef->conf_set_str ("cocoaui.columns", config.UTF8String);
+    deadbeef->conf_set_str ([self columnConfigKey], config.UTF8String);
+}
+
+- (NSString *)getColumnSizingConfig {
+    return conf_get_nsstr ([self columnSizingConfigKey], self.usingDefaultColumnConfig ? [self defaultColumnSizingConfig] : "[]");
+}
+
+- (void)writeColumnSizingConfig:(NSString *)config {
+    deadbeef->conf_set_str ([self columnSizingConfigKey], config.UTF8String);
 }
 
 - (void)initContent {
@@ -496,6 +563,7 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
     self.columns = NULL;
     self.ncolumns = 0;
     self.columnsAllocated = 0;
+    self.columnConfigDictionaries = nil;
 }
 
 - (int)insertColumn:(int)beforeIdx {
@@ -511,6 +579,10 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
     int idx = beforeIdx >= 0 ? beforeIdx : self.ncolumns-1;
     memset (&self.columns[idx], 0, sizeof(plt_col_info_t));
     self.columns[idx].size = 100;
+    self.columns[idx].sizing = ColumnSizingFixed;
+    if (self.columnConfigDictionaries != nil) {
+        [self.columnConfigDictionaries insertObject:[NSMutableDictionary new] atIndex:(NSUInteger)idx];
+    }
     return idx;
 }
 
@@ -527,7 +599,7 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
     }
 }
 
-- (void)initColumnAtIndex:(int)idx title:(const char *)title identifier:(int)_id size:(int)size format:(const char *)format sortFormat:(const char *)sortFormat alignment:(PlaylistColumnAlignment)alignment shouldSetColor:(BOOL)shouldSetColor color:(uint8_t *)color {
+- (void)initColumnAtIndex:(int)idx title:(const char *)title identifier:(int)_id size:(int)size sizing:(PlaylistColumnSizing)sizing format:(const char *)format sortFormat:(const char *)sortFormat alignment:(PlaylistColumnAlignment)alignment shouldSetColor:(BOOL)shouldSetColor color:(uint8_t *)color {
     [self freeColumnDataAtIndex:idx];
 
     self.columns[idx].type = _id;
@@ -535,6 +607,7 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
     self.columns[idx].format = format ? strdup (format) : NULL;
     self.columns[idx].sortFormat = (sortFormat && sortFormat[0]) ? strdup (sortFormat) : NULL;
     self.columns[idx].size = size;
+    self.columns[idx].sizing = sizing;
     self.columns[idx].alignment = alignment;
     if (format) {
         self.columns[idx].bytecode = deadbeef->tf_compile (format);
@@ -556,6 +629,12 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
     if (idx != self.ncolumns-1) {
         memmove (&self.columns[idx], &self.columns[idx+1], (self.ncolumns-idx) * sizeof (plt_col_info_t));
     }
+    if (idx >= 0) {
+        NSUInteger columnIndex = (NSUInteger)idx;
+        if (columnIndex < self.columnConfigDictionaries.count) {
+            [self.columnConfigDictionaries removeObjectAtIndex:columnIndex];
+        }
+    }
     self.ncolumns--;
 
     self.sortColumn = [self columnIndexForTitle:sortColumnTitle];
@@ -571,11 +650,15 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
     if (col != -1) {
         [menu insertItemWithTitle:@"Edit Column" action:@selector(menuEditColumn:) keyEquivalent:@"" atIndex:1].target = self;
         [menu insertItemWithTitle:@"Remove Column" action:@selector(menuRemoveColumn:) keyEquivalent:@"" atIndex:2].target = self;
-        NSMenuItem *item = [menu insertItemWithTitle:@"Pin Groups When Scrolling" action:@selector(menuTogglePinGroups:) keyEquivalent:@"" atIndex:3];
+        NSMenuItem *scaleItem = [menu insertItemWithTitle:@"Scale Column Width" action:@selector(menuToggleColumnSizing:) keyEquivalent:@"" atIndex:3];
+        scaleItem.state = self.columns[(int)col].sizing == ColumnSizingDynamic ? NSControlStateValueOn : NSControlStateValueOff;
+        scaleItem.target = self;
+
+        NSMenuItem *item = [menu insertItemWithTitle:@"Pin Groups When Scrolling" action:@selector(menuTogglePinGroups:) keyEquivalent:@"" atIndex:4];
         item.state = self.pinGroups?NSControlStateValueOn:NSControlStateValueOff;
         item.target = self;
 
-        [menu insertItem:[NSMenuItem separatorItem] atIndex:4];
+        [menu insertItem:[NSMenuItem separatorItem] atIndex:5];
 
         NSMenu *groupBy = [[NSMenu alloc] initWithTitle:@"Group By"];
         groupBy.delegate = self;
@@ -588,7 +671,7 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
 
         NSMenuItem *groupByItem = [[NSMenuItem alloc] initWithTitle:@"Group By" action:nil keyEquivalent:@""];
         groupByItem.submenu = groupBy;
-        [menu insertItem:groupByItem atIndex:5];
+        [menu insertItem:groupByItem atIndex:6];
     }
 
     return menu;
@@ -600,6 +683,14 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
 
 - (void)loadColumns:(NSArray *)cols {
     [self freeColumns];
+    NSString *sizingConfig = [self getColumnSizingConfig];
+    NSData *sizingData = [sizingConfig dataUsingEncoding:NSUTF8StringEncoding];
+    NSArray *sizingJson = [NSJSONSerialization JSONObjectWithData:sizingData options:0 error:nil];
+    if (![sizingJson isKindOfClass:NSArray.class]) {
+        sizingJson = @[];
+    }
+
+    self.columnConfigDictionaries = [[NSMutableArray alloc] initWithCapacity:cols.count];
     [cols enumerateObjectsUsingBlock:^(id obj, NSUInteger idx, BOOL *stop) {
         NSDictionary *dict = obj;
         NSString *title_s = dict[@"title"];
@@ -636,6 +727,12 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
             size = (int)size_s.integerValue;
         }
 
+        PlaylistColumnSizing sizing = ColumnSizingFixed;
+        id scales_obj = idx < sizingJson.count ? sizingJson[idx] : nil;
+        if ([scales_obj respondsToSelector:@selector(boolValue)] && [scales_obj boolValue]) {
+            sizing = ColumnSizingDynamic;
+        }
+
         PlaylistColumnAlignment alignment = ColumnAlignmentLeft;
         if (alignment_n) {
             alignment = (PlaylistColumnAlignment)alignment_n.intValue;
@@ -662,16 +759,26 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
 
         int colIdx = self.ncolumns;
         [self insertColumn:self.ncolumns];
+        self.columnConfigDictionaries[(NSUInteger)colIdx] = [dict mutableCopy];
         [self initColumnAtIndex:colIdx
                           title:title
                      identifier:colId
                            size:size
+                         sizing:sizing
                          format:fmt
                          sortFormat:sortfmt
                       alignment:alignment
                  shouldSetColor:setcolor
                           color:rgba];
     }];
+}
+
+- (NSArray<NSNumber *> *)columnSizingConfig {
+    NSMutableArray<NSNumber *> *sizing = [[NSMutableArray alloc] initWithCapacity:self.ncolumns];
+    for (int i = 0; i < self.ncolumns; i++) {
+        [sizing addObject:@(self.columns[i].sizing == ColumnSizingDynamic)];
+    }
+    return sizing;
 }
 
 - (int)columnCount {
@@ -690,16 +797,95 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
     return -1;
 }
 
+- (CGFloat)columnLayoutTargetWidth {
+    PlaylistView *lv = (PlaylistView *)self.view;
+    NSScrollView *scrollView = lv.contentView.enclosingScrollView;
+    CGFloat width = scrollView.contentView.bounds.size.width;
+    if (width <= 0) {
+        width = lv.contentView.bounds.size.width;
+    }
+    return width;
+}
+
 - (int)columnWidth:(DdbListviewCol_t)col {
+    if (col < 0 || col >= self.ncolumns) {
+        return 0;
+    }
+
+    CGFloat layoutTargetWidth = [self columnLayoutTargetWidth];
+    if (layoutTargetWidth <= 0) {
+        return self.columns[col].size;
+    }
+
+    int fixedWidth = 0;
+    int dynamicBaseWidth = 0;
+    int dynamicColumnCount = 0;
+    for (int i = 0; i < self.ncolumns; i++) {
+        if (self.columns[i].sizing == ColumnSizingFixed) {
+            fixedWidth += self.columns[i].size;
+        }
+        else {
+            dynamicBaseWidth += self.columns[i].size;
+            dynamicColumnCount++;
+        }
+    }
+
+    if (dynamicColumnCount == 0 || self.columns[col].sizing == ColumnSizingFixed) {
+        return self.columns[col].size;
+    }
+
+    int dynamicWidth = (int)floor(layoutTargetWidth) - fixedWidth;
+    int dynamicMinimumWidth = dynamicColumnCount * MIN_COLUMN_WIDTH;
+    if (dynamicWidth < dynamicMinimumWidth) {
+        dynamicWidth = dynamicMinimumWidth;
+    }
+
+    if (dynamicBaseWidth <= 0) {
+        return MIN_COLUMN_WIDTH;
+    }
+
+    int remainingWidth = dynamicWidth;
+    int remainingBaseWidth = dynamicBaseWidth;
+    int remainingDynamicColumns = dynamicColumnCount;
+    for (int i = 0; i < self.ncolumns; i++) {
+        if (self.columns[i].sizing == ColumnSizingFixed) {
+            continue;
+        }
+
+        int width;
+        if (remainingDynamicColumns == 1) {
+            width = remainingWidth;
+        }
+        else {
+            width = (int)round ((double)remainingWidth * (double)self.columns[i].size / (double)remainingBaseWidth);
+            int maximumWidth = remainingWidth - (remainingDynamicColumns - 1) * MIN_COLUMN_WIDTH;
+            if (width < MIN_COLUMN_WIDTH) {
+                width = MIN_COLUMN_WIDTH;
+            }
+            else if (width > maximumWidth) {
+                width = maximumWidth;
+            }
+        }
+
+        if (i == col) {
+            return width;
+        }
+
+        remainingWidth -= width;
+        remainingBaseWidth -= self.columns[i].size;
+        remainingDynamicColumns--;
+    }
+
     return self.columns[col].size;
 }
 
 - (int)columnGroupHeight:(DdbListviewCol_t)col {
-    return self.columns[col].size - ART_PADDING_HORZ*2;
+    return [self columnWidth:col] - ART_PADDING_HORZ*2;
 }
 
 - (void)setColumnWidth:(int)width forColumn:(DdbListviewCol_t)col {
     self.columns[col].size = width;
+    self.columns[col].sizing = ColumnSizingFixed;
 }
 
 - (int)columnMinHeight:(DdbListviewCol_t)col {
@@ -728,12 +914,14 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
         memcpy (&tmp, &self.columns[col], sizeof (plt_col_info_t));
         memmove (&self.columns[col], &self.columns[col+1], sizeof (plt_col_info_t));
         memcpy (&self.columns[col+1], &tmp, sizeof (plt_col_info_t));
+        [self.columnConfigDictionaries exchangeObjectAtIndex:(NSUInteger)col withObjectAtIndex:(NSUInteger)(col+1)];
         col++;
     }
     while (col > to) {
         memcpy (&tmp, &self.columns[col], sizeof (plt_col_info_t));
         memmove (&self.columns[col], &self.columns[col-1], sizeof (plt_col_info_t));
         memcpy (&self.columns[col-1], &tmp, sizeof (plt_col_info_t));
+        [self.columnConfigDictionaries exchangeObjectAtIndex:(NSUInteger)col withObjectAtIndex:(NSUInteger)(col-1)];
         col--;
     }
 

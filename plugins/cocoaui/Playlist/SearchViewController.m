@@ -37,13 +37,22 @@ extern DB_functions_t *deadbeef;
 @implementation SearchViewController
 
 #define DEFAULT_COLUMNS "[{\"title\":\"Artist - Album\", \"format\":\"$if(%album artist%,%album artist%,Unknown Artist)[ - %album%]\", \"size\":\"150\"}, {\"title\":\"Track Nr\", \"format\":\"%track number%\", \"size\":\"50\"}, {\"title\":\"Track Title\", \"format\":\"%title%\", \"size\":\"150\"}, {\"title\":\"Length\", \"format\":\"%length%\", \"size\":\"50\"}]"
+#define DEFAULT_COLUMN_SIZING "[false,false,true,false]"
 
-- (NSString *)getColumnConfig {
-    return conf_get_nsstr ("cocoaui.search_columns", DEFAULT_COLUMNS);
+- (const char *)columnConfigKey {
+    return "cocoaui.search_columns";
 }
 
-- (void)writeColumnConfig:(NSString *)config {
-    deadbeef->conf_set_str ("cocoaui.search_columns", config.UTF8String);
+- (const char *)defaultColumnConfig {
+    return DEFAULT_COLUMNS;
+}
+
+- (const char *)columnSizingConfigKey {
+    return "cocoaui.search_column_sizing";
+}
+
+- (const char *)defaultColumnSizingConfig {
+    return DEFAULT_COLUMN_SIZING;
 }
 
 - (int)playlistIter {

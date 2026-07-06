@@ -26,6 +26,7 @@
 #import "PlaylistContentView.h"
 #import "DdbShared.h"
 #include <deadbeef/deadbeef.h>
+#include <math.h>
 
 extern DB_functions_t *deadbeef;
 
@@ -104,6 +105,21 @@ static int headerheight = 23;
     NSScrollView *sv = (self.contentView).enclosingScrollView;
     NSRect rect = sv.documentVisibleRect;
     [self.contentView scrollChanged:rect];
+}
+
+- (void)setFrameSize:(NSSize)newSize {
+    NSSize oldSize = self.frame.size;
+
+    [super setFrameSize:newSize];
+
+    if (fabs (oldSize.width - newSize.width) < 1) {
+        return;
+    }
+
+    [self layoutSubtreeIfNeeded];
+    [self.contentView columnsDidChange];
+    self.headerView.needsDisplay = YES;
+    self.needsDisplay = YES;
 }
 
 - (void)setDelegate:(id<DdbListviewDelegate>)delegate {

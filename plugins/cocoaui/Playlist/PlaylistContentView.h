@@ -30,6 +30,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)scrollVerticalPosition:(CGFloat)verticalPosition;
 
 - (void)reloadData;
+- (void)columnsDidChange;
 
 - (void)scrollChanged:(NSRect)visibleRect;
 - (void)updatePinnedGroup;

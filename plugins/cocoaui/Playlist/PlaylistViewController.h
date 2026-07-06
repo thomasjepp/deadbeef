@@ -31,12 +31,18 @@ typedef NS_ENUM(NSInteger, PlaylistColumnAlignment) {
     ColumnAlignmentRight = 2,
 };
 
+typedef NS_ENUM(NSInteger, PlaylistColumnSizing) {
+    ColumnSizingFixed = 0,
+    ColumnSizingDynamic = 1,
+};
+
 typedef struct {
     char *title;
     int type; // predefined col type
     char *format;
     char *sortFormat;
     int size;
+    PlaylistColumnSizing sizing;
     PlaylistColumnAlignment alignment;
     int set_text_color;
     uint8_t text_color[4];

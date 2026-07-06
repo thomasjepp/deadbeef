@@ -15,6 +15,7 @@
 #import "PlaylistLocalDragDropHolder.h"
 #include <deadbeef/deadbeef.h>
 #import "UndoIntegration.h"
+#include <math.h>
 
 extern DB_functions_t *deadbeef;
 
@@ -45,6 +46,7 @@ static int grouptitleheight = 34;
 @property (nonatomic) CGSize contentSize;
 @property (nonatomic) int scroll_direction;
 @property (nonatomic) int scroll_pointer_y;
+@property (nonatomic) CGFloat visibleWidth;
 
 @property (nonatomic) PinnedGroupTitleView *pinnedGroupTitleView;
 
@@ -355,11 +357,19 @@ static int grouptitleheight = 34;
 }
 
 - (void)setFrameSize:(NSSize)newSize {
+    NSSize oldSize = self.frame.size;
     [super setFrameSize:newSize];
+    if (fabs (oldSize.width - newSize.width) >= 1 && self.delegate != nil) {
+        [self reloadData];
+    }
     [self updatePinnedGroup];
 }
 
 - (void)scrollChanged:(NSRect)visibleRect {
+    if (fabs (self.visibleWidth - visibleRect.size.width) >= 1) {
+        self.visibleWidth = visibleRect.size.width;
+        [self columnsDidChange];
+    }
     [self updatePinnedGroup];
 }
 
@@ -1428,6 +1438,8 @@ static int grouptitleheight = 34;
     for (DdbListviewCol_t c = (self.delegate).firstColumn; c != (self.delegate).invalidColumn; c = [self.delegate nextColumn:c]) {
         contentSize.width += [self.delegate columnWidth:c];
     }
+    [self updateContentFrame:contentSize];
+    self.needsDisplay = YES;
 }
 
 - (NSInteger)getScrollFocusGroupAndOffset:(CGFloat *)offset {
@@ -1493,4 +1505,3 @@ static int grouptitleheight = 34;
 }
 
 @end
-
