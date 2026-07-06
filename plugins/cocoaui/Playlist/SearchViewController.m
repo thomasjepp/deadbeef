@@ -38,6 +38,7 @@ extern DB_functions_t *deadbeef;
 
 #define DEFAULT_COLUMNS "[{\"title\":\"Artist - Album\", \"format\":\"$if(%album artist%,%album artist%,Unknown Artist)[ - %album%]\", \"size\":\"150\"}, {\"title\":\"Track Nr\", \"format\":\"%track number%\", \"size\":\"50\"}, {\"title\":\"Track Title\", \"format\":\"%title%\", \"size\":\"150\"}, {\"title\":\"Length\", \"format\":\"%length%\", \"size\":\"50\"}]"
 #define DEFAULT_COLUMN_SIZING "[false,false,true,false]"
+#define DEFAULT_COLUMN_AUTOSIZING "[false,false,false,false]"
 
 - (const char *)columnConfigKey {
     return "cocoaui.search_columns";
@@ -53,6 +54,14 @@ extern DB_functions_t *deadbeef;
 
 - (const char *)defaultColumnSizingConfig {
     return DEFAULT_COLUMN_SIZING;
+}
+
+- (const char *)columnAutoSizingConfigKey {
+    return "cocoaui.search_column_autosizing";
+}
+
+- (const char *)defaultColumnAutoSizingConfig {
+    return DEFAULT_COLUMN_AUTOSIZING;
 }
 
 - (int)playlistIter {

@@ -43,6 +43,9 @@ typedef struct {
     char *sortFormat;
     int size;
     PlaylistColumnSizing sizing;
+    int autosize;
+    int autosize_width;
+    int autosize_width_is_valid;
     PlaylistColumnAlignment alignment;
     int set_text_color;
     uint8_t text_color[4];
