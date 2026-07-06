@@ -275,11 +275,7 @@
 - (void)mouseUp:(NSEvent *)theEvent {
     id <DdbListviewDelegate> delegate = (self.listview).delegate;
 
-    if (self.dragging != delegate.invalidColumn && self.prepare) { // clicked
-        self.sortColumn = self.dragging;
-        [delegate sortColumn:self.dragging];
-    }
-    else if (self.dragging != delegate.invalidColumn || self.sizing != delegate.invalidColumn) {
+    if ((self.dragging != delegate.invalidColumn && !self.prepare) || self.sizing != delegate.invalidColumn) {
         [delegate columnsDidChange];
     }
     self.dragging = delegate.invalidColumn;

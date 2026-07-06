@@ -109,10 +109,10 @@ extern DB_functions_t *deadbeef;
 
 }
 
-- (void)sortColumn:(DdbListviewCol_t)column withOrder:(int)order {
+- (void)sortColumn:(DdbListviewCol_t)column withOrder:(enum ddb_sort_order_t)order {
     plt_col_info_t *c = &self.columns[(int)column];
     ddb_playlist_t *plt = deadbeef->plt_get_curr ();
-    deadbeef->plt_sort_v2 (plt, PL_SEARCH, c->type, c->format, order-1);
+    deadbeef->plt_sort_v2 (plt, PL_SEARCH, c->type, c->format, order);
     deadbeef->plt_unref (plt);
     deadbeef->sendmessage (DB_EV_PLAYLISTCHANGED, 0, DDB_PLAYLIST_CHANGE_CONTENT, 0);
 }

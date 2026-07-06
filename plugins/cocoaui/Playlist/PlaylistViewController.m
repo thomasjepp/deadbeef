@@ -253,6 +253,18 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
     }
 }
 
+- (void)menuSortColumnAscending:(id)sender {
+    if (self.menuColumn >= 0) {
+        [self sortColumn:self.menuColumn withOrder:DDB_SORT_ASCENDING];
+    }
+}
+
+- (void)menuSortColumnDescending:(id)sender {
+    if (self.menuColumn >= 0) {
+        [self sortColumn:self.menuColumn withOrder:DDB_SORT_DESCENDING];
+    }
+}
+
 - (void)menuToggleColumnSizing:(id)sender {
     if (self.menuColumn < 0) {
         return;
@@ -694,22 +706,35 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
     menu.autoenablesItems = NO;
     [menu insertItemWithTitle:@"Add Column" action:@selector(menuAddColumn:) keyEquivalent:@"" atIndex:0].target = self;
     if (col != -1) {
+        int columnIndex = (int)col;
         [menu insertItemWithTitle:@"Edit Column" action:@selector(menuEditColumn:) keyEquivalent:@"" atIndex:1].target = self;
         [menu insertItemWithTitle:@"Remove Column" action:@selector(menuRemoveColumn:) keyEquivalent:@"" atIndex:2].target = self;
-        NSMenuItem *scaleItem = [menu insertItemWithTitle:@"Scale Column Width" action:@selector(menuToggleColumnSizing:) keyEquivalent:@"" atIndex:3];
-        scaleItem.state = self.columns[(int)col].sizing == ColumnSizingDynamic && !self.columns[(int)col].autosize ? NSControlStateValueOn : NSControlStateValueOff;
+        [menu insertItem:[NSMenuItem separatorItem] atIndex:3];
+
+        NSMenuItem *sortAscendingItem = [menu insertItemWithTitle:@"Sort Ascending" action:@selector(menuSortColumnAscending:) keyEquivalent:@"" atIndex:4];
+        sortAscendingItem.state = self.sortColumn == columnIndex && self.columns[columnIndex].sort_order == DDB_SORT_ASCENDING ? NSControlStateValueOn : NSControlStateValueOff;
+        sortAscendingItem.target = self;
+
+        NSMenuItem *sortDescendingItem = [menu insertItemWithTitle:@"Sort Descending" action:@selector(menuSortColumnDescending:) keyEquivalent:@"" atIndex:5];
+        sortDescendingItem.state = self.sortColumn == columnIndex && self.columns[columnIndex].sort_order == DDB_SORT_DESCENDING ? NSControlStateValueOn : NSControlStateValueOff;
+        sortDescendingItem.target = self;
+
+        [menu insertItem:[NSMenuItem separatorItem] atIndex:6];
+
+        NSMenuItem *scaleItem = [menu insertItemWithTitle:@"Scale Column Width" action:@selector(menuToggleColumnSizing:) keyEquivalent:@"" atIndex:7];
+        scaleItem.state = self.columns[columnIndex].sizing == ColumnSizingDynamic && !self.columns[columnIndex].autosize ? NSControlStateValueOn : NSControlStateValueOff;
         scaleItem.target = self;
 
-        NSMenuItem *autoSizeItem = [menu insertItemWithTitle:@"Auto-size to Content" action:@selector(menuToggleColumnAutoSizing:) keyEquivalent:@"" atIndex:4];
-        autoSizeItem.state = self.columns[(int)col].autosize ? NSControlStateValueOn : NSControlStateValueOff;
-        autoSizeItem.enabled = self.columns[(int)col].type != DB_COLUMN_ALBUM_ART;
+        NSMenuItem *autoSizeItem = [menu insertItemWithTitle:@"Auto-size to Content" action:@selector(menuToggleColumnAutoSizing:) keyEquivalent:@"" atIndex:8];
+        autoSizeItem.state = self.columns[columnIndex].autosize ? NSControlStateValueOn : NSControlStateValueOff;
+        autoSizeItem.enabled = self.columns[columnIndex].type != DB_COLUMN_ALBUM_ART;
         autoSizeItem.target = self;
 
-        NSMenuItem *item = [menu insertItemWithTitle:@"Pin Groups When Scrolling" action:@selector(menuTogglePinGroups:) keyEquivalent:@"" atIndex:5];
+        NSMenuItem *item = [menu insertItemWithTitle:@"Pin Groups When Scrolling" action:@selector(menuTogglePinGroups:) keyEquivalent:@"" atIndex:9];
         item.state = self.pinGroups?NSControlStateValueOn:NSControlStateValueOff;
         item.target = self;
 
-        [menu insertItem:[NSMenuItem separatorItem] atIndex:6];
+        [menu insertItem:[NSMenuItem separatorItem] atIndex:10];
 
         NSMenu *groupBy = [[NSMenu alloc] initWithTitle:@"Group By"];
         groupBy.delegate = self;
@@ -722,7 +747,7 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
 
         NSMenuItem *groupByItem = [[NSMenuItem alloc] initWithTitle:@"Group By" action:nil keyEquivalent:@""];
         groupByItem.submenu = groupBy;
-        [menu insertItem:groupByItem atIndex:7];
+        [menu insertItem:groupByItem atIndex:11];
     }
 
     return menu;
@@ -1727,15 +1752,12 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
 }
 
 
-- (void)sortColumn:(DdbListviewCol_t)column {
+- (void)sortColumn:(DdbListviewCol_t)column withOrder:(enum ddb_sort_order_t)order {
     plt_col_info_t *c = &self.columns[(int)column];
     ddb_playlist_t *plt = deadbeef->plt_get_curr ();
 
-    if (self.sortColumn != column) {
-        self.columns[column].sort_order = 0;
-    }
     self.sortColumn = (int)column;
-    self.columns[column].sort_order = 1 - self.columns[column].sort_order;
+    self.columns[column].sort_order = order;
 
     deadbeef->plt_sort_v2 (plt, PL_MAIN, c->type, (c->sortFormat && c->sortFormat[0]) ? c->sortFormat : c->format, self.columns[column].sort_order);
     deadbeef->plt_unref (plt);

@@ -7,6 +7,7 @@
 //
 
 #import <Foundation/Foundation.h>
+#include <deadbeef/deadbeef.h>
 #import "PlaylistDataModel.h"
 
 @class PlaylistGroup;
@@ -36,6 +37,7 @@ typedef intptr_t DdbListviewCol_t;
 - (void)columnsDidChange;
 
 - (NSMenu *)contextMenuForColumn:(DdbListviewCol_t)col withEvent:(NSEvent*)theEvent forView:(NSView *)view;
+- (void)sortColumn:(DdbListviewCol_t)column withOrder:(enum ddb_sort_order_t)order;
 
 - (BOOL)isAlbumArtColumn:(DdbListviewCol_t)col;
 
@@ -44,7 +46,6 @@ typedef intptr_t DdbListviewCol_t;
 - (void)drawAlbumArtForGroup:(PlaylistGroup *)group inColumn:(DdbListviewCol_t)col isPinnedGroup:(BOOL)pinned nextGroupCoord:(int)grp_next_y xPos:(int)x yPos:(int)y viewportY:(CGFloat)viewportY width:(int)width height:(int)height;
 - (void)selectionChanged:(DdbListviewRow_t)row;
 - (NSMenu *)contextMenuForEvent:(NSEvent *)event forView:(NSView *)view;
-- (void)sortColumn:(DdbListviewCol_t)column;
 - (void)dropItems:(int)from_playlist before:(DdbListviewRow_t)before indices:(uint32_t *)indices count:(int)count copy:(BOOL)copy;
 - (void)externalDropItems:(NSArray *)paths after:(DdbListviewRow_t)after completionBlock:(void (^) (void))completionBlock;
 - (void)dropPlayItems:(DdbListviewRow_t *)items before:(DdbListviewRow_t)before count:(int)count;
