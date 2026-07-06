@@ -9,7 +9,6 @@
 #import "PlaylistView.h"
 #import "PlaylistHeaderView.h"
 #import "PlaylistContentView.h"
-#include <deadbeef/deadbeef.h>
 
 @interface PlaylistHeaderView()
 
@@ -20,7 +19,6 @@
 @property (nonatomic) DdbListviewCol_t sizing;
 @property (nonatomic) NSPoint dragPt;
 @property (nonatomic) BOOL prepare;
-@property (nonatomic) DdbListviewCol_t sortColumn;
 @property (nonatomic) NSColor *separatorColor;
 
 @property (nonatomic) BOOL isKeyWindow;
@@ -114,37 +112,13 @@
 
 - (void)drawColumnHeader:(DdbListviewCol_t)col inRect:(NSRect)rect {
     int columnCount = self.delegate.columnCount;
-    int sortColumnIndex = self.delegate.sortColumnIndex;
     if (col < columnCount) {
         CGFloat width = rect.size.width-6;
-        if (col == sortColumnIndex) {
-            width -= 16;
-        }
         if (width < 0) {
             width = 0;
         }
 
         [[self.delegate columnTitleAtIndex:col] drawInRect:NSMakeRect(rect.origin.x+4, rect.origin.y-2, width, rect.size.height-2) withAttributes:self.titleAttributes];
-
-        enum ddb_sort_order_t sortOrder = [self.delegate columnSortOrderAtIndex:col];
-
-
-        if (col == sortColumnIndex) {
-            [[NSColor.controlTextColor highlightWithLevel:0.5] set];
-            NSBezierPath *path = [NSBezierPath new];
-            path.lineWidth = 2;
-            if (sortOrder == DDB_SORT_ASCENDING) {
-                [path moveToPoint:NSMakePoint(rect.origin.x+4+width+4, rect.origin.y+10)];
-                [path lineToPoint:NSMakePoint(rect.origin.x+4+width+8, rect.origin.y+10+4)];
-                [path lineToPoint:NSMakePoint(rect.origin.x+4+width+12, rect.origin.y+10)];
-            }
-            else if (sortOrder == DDB_SORT_DESCENDING) {
-                [path moveToPoint:NSMakePoint(rect.origin.x+4+width+4, rect.origin.y+10+4)];
-                [path lineToPoint:NSMakePoint(rect.origin.x+4+width+8, rect.origin.y+10)];
-                [path lineToPoint:NSMakePoint(rect.origin.x+4+width+12, rect.origin.y+10+4)];
-            }
-            [path stroke];
-        }
     }
 }
 
@@ -275,11 +249,7 @@
 - (void)mouseUp:(NSEvent *)theEvent {
     id <DdbListviewDelegate> delegate = (self.listview).delegate;
 
-    if (self.dragging != delegate.invalidColumn && self.prepare) { // clicked
-        self.sortColumn = self.dragging;
-        [delegate sortColumn:self.dragging];
-    }
-    else if (self.dragging != delegate.invalidColumn || self.sizing != delegate.invalidColumn) {
+    if ((self.dragging != delegate.invalidColumn && !self.prepare) || self.sizing != delegate.invalidColumn) {
         [delegate columnsDidChange];
     }
     self.dragging = delegate.invalidColumn;
@@ -352,7 +322,6 @@
         if (inspos != delegate.invalidColumn && inspos != self.dragging) {
             [delegate moveColumn:self.dragging to:inspos];
             self.dragging = inspos;
-            self.sortColumn = delegate.invalidColumn;
             [self.listview.contentView reloadData];
         }
         else {

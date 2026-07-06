@@ -67,7 +67,6 @@ extern DB_functions_t *deadbeef;
 @property (nonatomic, assign) DB_playItem_t *playPosUpdateTrack;
 @property (nonatomic) EditColumnWindowController *editColumnWindowController;
 @property (nonatomic) GroupByCustomWindowController *groupByCustomWindowController;
-@property (nonatomic) int sortColumn;
 @property (nonatomic,readonly) const char *groupByConfStr;
 @property (nonatomic) NSString *groupStr;
 
@@ -589,8 +588,6 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
     self.dataModel = [[PlaylistDataModel alloc] initWithIter:self.playlistIter];
     lv.dataModel = self.dataModel;
 
-    self.sortColumn = -1;
-
     [self initContent];
     [self setupPlaylist:lv];
 
@@ -666,12 +663,6 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
 }
 
 - (void)removeColumnAtIndex:(int)idx {
-    char *sortColumnTitle = NULL;
-    if (self.sortColumn >= 0) {
-        sortColumnTitle = self.columns[self.sortColumn].title;
-
-    }
-
     if (idx != self.ncolumns-1) {
         memmove (&self.columns[idx], &self.columns[idx+1], (self.ncolumns-idx) * sizeof (plt_col_info_t));
     }
@@ -682,8 +673,6 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
         }
     }
     self.ncolumns--;
-
-    self.sortColumn = [self columnIndexForTitle:sortColumnTitle];
 }
 
 // pass col=-1 for "empty space", e.g. when appending new col
@@ -694,15 +683,17 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
     menu.autoenablesItems = NO;
     [menu insertItemWithTitle:@"Add Column" action:@selector(menuAddColumn:) keyEquivalent:@"" atIndex:0].target = self;
     if (col != -1) {
+        int columnIndex = (int)col;
         [menu insertItemWithTitle:@"Edit Column" action:@selector(menuEditColumn:) keyEquivalent:@"" atIndex:1].target = self;
         [menu insertItemWithTitle:@"Remove Column" action:@selector(menuRemoveColumn:) keyEquivalent:@"" atIndex:2].target = self;
+
         NSMenuItem *scaleItem = [menu insertItemWithTitle:@"Scale Column Width" action:@selector(menuToggleColumnSizing:) keyEquivalent:@"" atIndex:3];
-        scaleItem.state = self.columns[(int)col].sizing == ColumnSizingDynamic && !self.columns[(int)col].autosize ? NSControlStateValueOn : NSControlStateValueOff;
+        scaleItem.state = self.columns[columnIndex].sizing == ColumnSizingDynamic && !self.columns[columnIndex].autosize ? NSControlStateValueOn : NSControlStateValueOff;
         scaleItem.target = self;
 
         NSMenuItem *autoSizeItem = [menu insertItemWithTitle:@"Auto-size to Content" action:@selector(menuToggleColumnAutoSizing:) keyEquivalent:@"" atIndex:4];
-        autoSizeItem.state = self.columns[(int)col].autosize ? NSControlStateValueOn : NSControlStateValueOff;
-        autoSizeItem.enabled = self.columns[(int)col].type != DB_COLUMN_ALBUM_ART;
+        autoSizeItem.state = self.columns[columnIndex].autosize ? NSControlStateValueOn : NSControlStateValueOff;
+        autoSizeItem.enabled = self.columns[columnIndex].type != DB_COLUMN_ALBUM_ART;
         autoSizeItem.target = self;
 
         NSMenuItem *item = [menu insertItemWithTitle:@"Pin Groups When Scrolling" action:@selector(menuTogglePinGroups:) keyEquivalent:@"" atIndex:5];
@@ -1089,12 +1080,6 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
 - (void)moveColumn:(DdbListviewCol_t)col to:(DdbListviewCol_t)to {
     plt_col_info_t tmp;
 
-    char *sortColumnTitle = NULL;
-    if (self.sortColumn >= 0) {
-        sortColumnTitle = self.columns[self.sortColumn].title;
-
-    }
-
     while (col < to) {
         memcpy (&tmp, &self.columns[col], sizeof (plt_col_info_t));
         memmove (&self.columns[col], &self.columns[col+1], sizeof (plt_col_info_t));
@@ -1109,8 +1094,6 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
         [self.columnConfigDictionaries exchangeObjectAtIndex:(NSUInteger)col withObjectAtIndex:(NSUInteger)(col-1)];
         col--;
     }
-
-    self.sortColumn = [self columnIndexForTitle:sortColumnTitle];
 }
 
 - (NSMutableAttributedString *)stringWithTintAttributesFromString:(const char *)inputString initialAttributes:(NSDictionary *)attributes foregroundColor:(NSColor *)foregroundColor backgroundColor:(NSColor *)backgroundColor {
@@ -1727,25 +1710,6 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
 }
 
 
-- (void)sortColumn:(DdbListviewCol_t)column {
-    plt_col_info_t *c = &self.columns[(int)column];
-    ddb_playlist_t *plt = deadbeef->plt_get_curr ();
-
-    if (self.sortColumn != column) {
-        self.columns[column].sort_order = 0;
-    }
-    self.sortColumn = (int)column;
-    self.columns[column].sort_order = 1 - self.columns[column].sort_order;
-
-    deadbeef->plt_sort_v2 (plt, PL_MAIN, c->type, (c->sortFormat && c->sortFormat[0]) ? c->sortFormat : c->format, self.columns[column].sort_order);
-    deadbeef->plt_unref (plt);
-
-    deadbeef->sendmessage (DB_EV_PLAYLISTCHANGED, 0, DDB_PLAYLIST_CHANGE_CONTENT, 0);
-
-    PlaylistView *lv = (PlaylistView *)self.view;
-    lv.headerView.needsDisplay = YES;
-}
-
 - (void)dropItems:(int)from_playlist before:(DdbListviewRow_t)before indices:(uint32_t *)indices count:(int)count copy:(BOOL)copy {
 
     deadbeef->pl_lock ();
@@ -1873,16 +1837,8 @@ artwork_listener (ddb_artwork_listener_event_t event, void *user_data, int64_t p
     }
 }
 
-- (int)sortColumnIndex {
-    return self.sortColumn;
-}
-
 - (NSString *)columnTitleAtIndex:(NSUInteger)index {
     return @(self.columns[index].title);
-}
-
-- (enum ddb_sort_order_t)columnSortOrderAtIndex:(NSUInteger)index {
-    return self.columns[index].sort_order;
 }
 
 
